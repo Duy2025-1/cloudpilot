@@ -45,3 +45,9 @@ temp/
 .turbo/
 .cache/
 coverage/
+
+# Certificates & Keys
+*.key
+*.crt
+*.pem
+docker/nginx/certs/

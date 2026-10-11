@@ -1,0 +1,167 @@
+name: Release & Publish Container Images
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semantic version tag (e.g. v1.0.0)"
+        required: true
+        default: "v1.0.0"
+      publish_latest:
+        description: "Publish as latest tag"
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  validate:
+    name: Verify Code Quality & Test Suites
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.6.0
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${ runner.os }}-pnpm-store-
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format Check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Run Test Suites
+        run: pnpm test
+
+      - name: Build All Workspaces
+        run: pnpm build
+
+  build-and-publish:
+    name: Build & Publish Container Images
+    needs: validate
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Determine Image Version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Version determined: ${TAG}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase Repository Owner
+        id: repo
+        shell: bash
+        run: |
+          echo "owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      # 1. API Image
+      - name: Build & Push API Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.api
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/cloudpilot-api:${{ steps.version.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/cloudpilot-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 2. Worker Image
+      - name: Build & Push Worker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.worker
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/cloudpilot-worker:${{ steps.version.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/cloudpilot-worker:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 3. Web Dashboard Image
+      - name: Build & Push Web Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.web
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/cloudpilot-web:${{ steps.version.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/cloudpilot-web:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  create-github-release:
+    name: Create GitHub Release
+    needs: [validate, build-and-publish]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: CloudPilot Release ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
