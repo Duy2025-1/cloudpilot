@@ -6,7 +6,8 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { CreateProjectDto } from "./dto/create-project.dto.js";
-import { ProjectRole } from "@cloudpilot/database";
+import { ProjectRole, Role, AuditAction } from "@cloudpilot/database";
+import { AuthenticatedUser } from "../auth/decorators/current-user.decorator.js";
 
 @Injectable()
 export class ProjectsService {
@@ -14,7 +15,12 @@ export class ProjectsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateProjectDto, ownerId?: string) {
+  async create(
+    dto: CreateProjectDto,
+    user: AuthenticatedUser,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
     // Check slug collision
     const existing = await this.prisma.project.findUnique({
       where: { slug: dto.slug },
@@ -25,19 +31,7 @@ export class ProjectsService {
       );
     }
 
-    // Fallback owner if not provided (for development/seed purposes)
-    let actualOwnerId = ownerId;
-    if (!actualOwnerId) {
-      const firstUser = await this.prisma.user.findFirst();
-      if (!firstUser) {
-        throw new NotFoundException(
-          "No user exists in the system to assign as project owner",
-        );
-      }
-      actualOwnerId = firstUser.id;
-    }
-
-    // Create project with default environments in a single transaction
+    // Create project with default environments and owner membership in a single transaction
     return this.prisma.$transaction(async (tx) => {
       const project = await tx.project.create({
         data: {
@@ -50,10 +44,10 @@ export class ProjectsService {
           rootDirectory: dto.rootDirectory,
           buildCommand: dto.buildCommand,
           startCommand: dto.startCommand,
-          ownerId: actualOwnerId!,
+          ownerId: user.id,
           members: {
             create: {
-              userId: actualOwnerId!,
+              userId: user.id,
               role: ProjectRole.OWNER,
             },
           },
@@ -70,15 +64,38 @@ export class ProjectsService {
         },
       });
 
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          projectId: project.id,
+          action: AuditAction.PROJECT_CREATE,
+          metadata: { name: project.name, slug: project.slug },
+          ipAddress,
+          userAgent,
+        },
+      });
+
       this.logger.log(
-        `Project created: ${project.name} (${project.slug}) by user ${actualOwnerId}`,
+        `Project created: ${project.name} (${project.slug}) by user ${user.email}`,
       );
       return project;
     });
   }
 
-  async findAll() {
+  async findAll(user?: AuthenticatedUser) {
+    const where =
+      user && user.role !== Role.ADMIN
+        ? {
+            members: {
+              some: {
+                userId: user.id,
+              },
+            },
+          }
+        : {};
+
     return this.prisma.project.findMany({
+      where,
       include: {
         environments: true,
         _count: {
@@ -110,6 +127,10 @@ export class ProjectsService {
             },
           },
         },
+        deployments: {
+          take: 10,
+          orderBy: { createdAt: "desc" },
+        },
       },
     });
 
@@ -118,5 +139,24 @@ export class ProjectsService {
     }
 
     return project;
+  }
+
+  async delete(idOrSlug: string, user: AuthenticatedUser) {
+    const project = await this.findOne(idOrSlug);
+
+    await this.prisma.project.delete({
+      where: { id: project.id },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: AuditAction.PROJECT_DELETE,
+        metadata: { projectId: project.id, slug: project.slug },
+      },
+    });
+
+    this.logger.log(`Project deleted: ${project.name} by ${user.email}`);
+    return { deleted: true, id: project.id };
   }
 }

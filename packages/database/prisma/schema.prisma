@@ -67,6 +67,7 @@ enum LogLevel {
 enum AuditAction {
   USER_LOGIN
   USER_REGISTER
+  USER_LOGOUT
   OAUTH_CONNECT
   PROJECT_CREATE
   PROJECT_UPDATE
@@ -93,6 +94,7 @@ model User {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  sessions         Session[]
   oauthAccounts    OAuthAccount[]
   ownedProjects    Project[]       @relation("ProjectOwner")
   projectMembers   ProjectMember[]
@@ -100,6 +102,21 @@ model User {
   auditLogs        AuditLog[]
 
   @@map("users")
+}
+
+model Session {
+  id        String   @id // random cryptographic session token string
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
 }
 
 model OAuthAccount {

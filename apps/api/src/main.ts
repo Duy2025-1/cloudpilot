@@ -1,5 +1,6 @@
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, Logger } from "@nestjs/common";
+import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module.js";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter.js";
 import { TransformInterceptor } from "./common/interceptors/transform.interceptor.js";
@@ -8,7 +9,10 @@ async function bootstrap() {
   const logger = new Logger("Bootstrap");
   const app = await NestFactory.create(AppModule);
 
-  // 1. API Prefix
+  // 1. Cookie Parser
+  app.use(cookieParser());
+
+  // 2. API Prefix
   app.setGlobalPrefix("api/v1");
 
   // 2. Global Validation Pipe

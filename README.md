@@ -116,10 +116,15 @@ The API will be available at: `http://localhost:4000/api/v1`
 
 #### Core API Endpoints:
 
+- `POST   /api/v1/auth/register` - Create account with Argon2id hash & session cookie (Rate-limited)
+- `POST   /api/v1/auth/login` - Authenticate & receive HttpOnly session cookie (Rate-limited: 5/min)
+- `POST   /api/v1/auth/logout` - Revoke session & clear HttpOnly cookie
+- `GET    /api/v1/auth/me` - Get current authenticated user profile
 - `GET    /api/v1/health` - Healthcheck & Database connectivity probe
-- `POST   /api/v1/projects` - Create new project (auto-provisions Production & Staging environments)
-- `GET    /api/v1/projects` - List all projects
-- `GET    /api/v1/projects/:idOrSlug` - Get project details with environments & members
+- `POST   /api/v1/projects` - Create new project (Protected, auto-assigns Owner)
+- `GET    /api/v1/projects` - List accessible projects (Scoped to authenticated user membership)
+- `GET    /api/v1/projects/:idOrSlug` - Get project details (Protected by ProjectMemberGuard)
+- `DELETE /api/v1/projects/:idOrSlug` - Delete project (Requires Owner role)
 - `POST   /api/v1/environments/:envId/vars` - Set encrypted environment variable (AES-256-GCM)
 - `GET    /api/v1/environments/:envId/vars` - List environment variables (secrets masked)
 - `DELETE /api/v1/environments/:envId/vars/:key` - Delete environment variable
@@ -127,7 +132,17 @@ The API will be available at: `http://localhost:4000/api/v1`
 - `GET    /api/v1/deployments` - List deployments
 - `GET    /api/v1/deployments/:id` - Get deployment status, container port, and logs
 
-### 6. Build, Lint & Test
+### 6. Run Frontend Dashboard
+
+Start the React + Vite dashboard:
+
+```bash
+pnpm web:dev
+```
+
+Open `http://localhost:3000` in your browser. All API requests are proxied seamlessly to port 4000 with HttpOnly session cookies.
+
+### 7. Build, Lint & Test
 
 Run all quality checks across the entire workspace:
 

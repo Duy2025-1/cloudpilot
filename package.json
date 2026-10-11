@@ -12,6 +12,7 @@
     "db:seed": "pnpm --filter @cloudpilot/database db:seed",
     "db:studio": "pnpm --filter @cloudpilot/database db:studio",
     "api:dev": "pnpm --filter @cloudpilot/api start:dev",
+    "web:dev": "pnpm --filter @cloudpilot/web dev",
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r --if-present run test",

@@ -30,12 +30,23 @@ describe("ProjectsService", () => {
       slug: "existing-app",
     } as any);
 
+    const mockUser = {
+      id: "user_1",
+      email: "owner@cloudpilot.local",
+      name: "Owner",
+      role: "DEVELOPER",
+      createdAt: new Date(),
+    };
+
     await expect(
-      service.create({
-        name: "Existing App",
-        slug: "existing-app",
-        repositoryUrl: "https://github.com/org/repo.git",
-      }),
+      service.create(
+        {
+          name: "Existing App",
+          slug: "existing-app",
+          repositoryUrl: "https://github.com/org/repo.git",
+        },
+        mockUser,
+      ),
     ).rejects.toThrow(ConflictException);
   });
 
@@ -62,15 +73,29 @@ describe("ProjectsService", () => {
         project: {
           create: vi.fn().mockResolvedValueOnce(mockCreatedProject),
         },
+        auditLog: {
+          create: vi.fn().mockResolvedValueOnce({} as any),
+        },
       };
       return callback(tx as any);
     });
 
-    const result = await service.create({
-      name: "New App",
-      slug: "new-app",
-      repositoryUrl: "https://github.com/org/repo.git",
-    });
+    const mockUser = {
+      id: "user_1",
+      email: "owner@cloudpilot.local",
+      name: "Owner",
+      role: "DEVELOPER",
+      createdAt: new Date(),
+    };
+
+    const result = await service.create(
+      {
+        name: "New App",
+        slug: "new-app",
+        repositoryUrl: "https://github.com/org/repo.git",
+      },
+      mockUser,
+    );
 
     expect(result.id).toBe("proj_new");
     expect(result.environments).toHaveLength(2);
