@@ -150,7 +150,39 @@ The API will be available at: `http://localhost:4000/api/v1`
 - **Idempotency & Duplicate Prevention**: Each webhook delivery UUID (`X-GitHub-Delivery`) is recorded in the `webhook_deliveries` table. Duplicate delivery attempts are acknowledged idempotently without triggering duplicate builds.
 - **Branch-Filtered Auto-Deploy**: Push events only trigger automatic deployments if `project.autoDeployEnabled === true` and the pushed Git reference matches `refs/heads/${project.autoDeployBranch}`.
 
-### 7. Run Frontend Dashboard
+### 7. Deployment Engine & Worker Architecture
+
+#### State Machine Lifecycle:
+
+Deployments transition strictly through the following state machine:
+
+```
+[QUEUED] ──> [CLONING] ──> [BUILDING] ──> [DEPLOYING] ──> [HEALTH_CHECKING] ──> [SUCCEEDED]
+   │             │             │              │                  │
+   └─────────────┴─────────────┴──────────────┴──────────────────┴───> [FAILED / TIMED_OUT / CANCELLED]
+```
+
+- **`QUEUED`**: API validates project membership, decrypts AES-256-GCM environment variables, records deployment in PostgreSQL, and enqueues BullMQ job.
+- **`CLONING`**: Worker verifies commit SHA format (`^[0-9a-fA-F]{7,40}$`) and clones git repository using direct process execution (`spawn('git', ..., { shell: false })`).
+- **`BUILDING`**: Builds Docker image with unique tag `cloudpilot/<projectSlug>:<envSlug>-<shortSha>-<shortDepId>`. Falls back to safe Alpine Node.js template if custom Dockerfile is absent.
+- **`DEPLOYING`**: Allocates unused host port dynamically, boots container with strict cgroup constraints: `--memory=${memoryLimitMb}m`, `--cpus=${cpuLimit}`, and `--security-opt=no-new-privileges:true`.
+- **`HEALTH_CHECKING`**: Actively polls `http://127.0.0.1:<port>/health` every 1s (up to 30s timeout).
+- **`SUCCEEDED`**: On healthcheck success, candidate release is promoted to `ACTIVE`, and old active container is safely retired (zero downtime).
+
+#### Security Boundaries:
+
+- **Shell Injection Immunity**: Never invokes `child_process.exec` or shell interpreters. All Git and Docker commands execute via `spawn(cmd, args, { shell: false })`.
+- **Docker Socket Isolation**: The Docker socket (`/var/run/docker.sock`) is NEVER mounted into deployed user containers.
+- **Fail-Safe Zero-Downtime Guarantee**: If candidate build fails or health check times out, the candidate container is terminated immediately while the previously active container remains unaffected.
+- **Instant Rollback**: Rolling back to a previous release leverages the pre-built, verified image tag, bypassing rebuild and validating container health before demoting the current active release.
+
+#### Running the Background Deployment Worker:
+
+```bash
+pnpm worker:dev
+```
+
+### 8. Run Frontend Dashboard
 
 Start the React + Vite dashboard:
 
@@ -160,14 +192,14 @@ pnpm web:dev
 
 Open `http://localhost:3000` in your browser. All API requests are proxied seamlessly to port 4000 with HttpOnly session cookies.
 
-### 8. Build, Lint & Test
+### 9. Build, Lint & Test
 
 Run all quality checks across the entire workspace:
 
 ```bash
 pnpm build        # Compile TypeScript across all packages & apps
 pnpm typecheck    # Strict TypeScript typechecking (tsc --noEmit)
-pnpm test         # Run all Vitest unit and integration test suites
+pnpm test         # Run all 55 Vitest unit and integration test suites
 pnpm lint         # Run ESLint across monorepo
 pnpm format:check # Verify Prettier code style
 ```

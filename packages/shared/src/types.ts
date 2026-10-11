@@ -1,11 +1,15 @@
 import { DeploymentTrigger, LogLevel } from "./enums.js";
 
+export const DEPLOYMENT_QUEUE_NAME = "cloudpilot-deployments";
+
 export interface DeploymentJobPayload {
   deploymentId: string;
   projectId: string;
   projectName: string;
+  projectSlug?: string;
   environmentId: string;
   environmentName: string;
+  environmentSlug?: string;
   repositoryUrl: string;
   commitSha: string;
   branch: string;
@@ -16,8 +20,11 @@ export interface DeploymentJobPayload {
   memoryLimitMb: number;
   cpuLimit: number;
   envVars: Record<string, string>;
-  trigger: DeploymentTrigger;
+  trigger: DeploymentTrigger | string;
   triggeredById?: string | null;
+  isRollback?: boolean;
+  rollbackFromReleaseId?: string;
+  imageTag?: string;
 }
 
 export interface HealthCheckResult {

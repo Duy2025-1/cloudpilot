@@ -14,9 +14,19 @@ import {
   Zap,
   Copy,
   Check,
+  RotateCcw,
+  XCircle,
+  RefreshCw,
 } from "lucide-react";
 import { GithubIcon } from "../components/ui/GithubIcon.js";
-import { api, Project, EnvVar, Deployment, GitHubCommit } from "../lib/api.js";
+import {
+  api,
+  Project,
+  EnvVar,
+  Deployment,
+  GitHubCommit,
+  DeploymentLog,
+} from "../lib/api.js";
 import { Button } from "../components/ui/Button.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Card } from "../components/ui/Card.js";
@@ -55,6 +65,14 @@ export const ProjectDetailPage: React.FC = () => {
   const [recentCommits, setRecentCommits] = useState<GitHubCommit[]>([]);
   const [isLoadingCommits, setIsLoadingCommits] = useState(false);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
+
+  // Live Logs Modal State
+  const [activeLogDeployment, setActiveLogDeployment] =
+    useState<Deployment | null>(null);
+  const [activeLogs, setActiveLogs] = useState<DeploymentLog[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isRollingBack, setIsRollingBack] = useState(false);
 
   const handleOpenDeployModal = async () => {
     setIsDeployModalOpen(true);
@@ -103,6 +121,90 @@ export const ProjectDetailPage: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Live Logs Polling Effect
+  useEffect(() => {
+    if (!activeLogDeployment) return;
+
+    const isActive = [
+      "QUEUED",
+      "CLONING",
+      "BUILDING",
+      "DEPLOYING",
+      "HEALTH_CHECKING",
+    ].includes(activeLogDeployment.status);
+
+    if (!isActive) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const [updatedDep, logs] = await Promise.all([
+          api.deployments.get(activeLogDeployment.id),
+          api.deployments.logs(activeLogDeployment.id),
+        ]);
+        setActiveLogDeployment(updatedDep);
+        setActiveLogs(logs);
+        setDeployments((prev) =>
+          prev.map((d) => (d.id === updatedDep.id ? updatedDep : d)),
+        );
+      } catch {
+        // Continue
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [activeLogDeployment?.id, activeLogDeployment?.status]);
+
+  const handleOpenLogs = async (dep: Deployment) => {
+    setActiveLogDeployment(dep);
+    setIsLoadingLogs(true);
+    try {
+      const logs = await api.deployments.logs(dep.id);
+      setActiveLogs(logs);
+    } catch {
+      setActiveLogs([]);
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  };
+
+  const handleCancelDeployment = async (depId: string) => {
+    setIsCancelling(true);
+    try {
+      const cancelled = await api.deployments.cancel(depId);
+      setActiveLogDeployment((prev) =>
+        prev && prev.id === depId ? cancelled : prev,
+      );
+      setDeployments((prev) =>
+        prev.map((d) => (d.id === depId ? cancelled : d)),
+      );
+    } catch (err: any) {
+      setError(err.message || "Failed to cancel deployment");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleRollbackDeployment = async (dep: Deployment) => {
+    if (!project || !selectedEnvId) return;
+    setIsRollingBack(true);
+    try {
+      const rollbackDep = await api.deployments.trigger({
+        projectId: project.id,
+        environmentId: selectedEnvId,
+        commitSha: dep.commitSha,
+        branch: dep.branch,
+        commitMessage: `Rollback to commit ${dep.commitSha.substring(0, 7)}`,
+      });
+
+      setDeployments((prev) => [rollbackDep, ...prev]);
+      handleOpenLogs(rollbackDep);
+    } catch (err: any) {
+      setError(err.message || "Failed to trigger rollback");
+    } finally {
+      setIsRollingBack(false);
+    }
+  };
 
   const fetchProjectData = async () => {
     if (!slug) return;
@@ -389,39 +491,82 @@ export const ProjectDetailPage: React.FC = () => {
                       <th className="px-4 py-3">Duration</th>
                       <th className="px-4 py-3">Container Port</th>
                       <th className="px-4 py-3 text-right">Created At</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {deployments.map((dep) => (
-                      <tr
-                        key={dep.id}
-                        className="hover:bg-slate-800/30 transition-colors"
-                      >
-                        <td className="px-4 py-3">
-                          <Badge status={dep.status} />
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-slate-200">
-                          {dep.commitSha.substring(0, 7)}
-                        </td>
-                        <td className="px-4 py-3 text-slate-400">
-                          {dep.branch}
-                        </td>
-                        <td className="px-4 py-3 text-slate-300 font-sans truncate max-w-xs">
-                          {dep.commitMessage || "Manual deployment"}
-                        </td>
-                        <td className="px-4 py-3 text-slate-400">
-                          {dep.durationMs
-                            ? `${(dep.durationMs / 1000).toFixed(1)}s`
-                            : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-indigo-400">
-                          {dep.containerPort ? `:${dep.containerPort}` : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-right text-slate-400">
-                          {new Date(dep.createdAt).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
+                    {deployments.map((dep) => {
+                      const isActive = [
+                        "QUEUED",
+                        "CLONING",
+                        "BUILDING",
+                        "DEPLOYING",
+                        "HEALTH_CHECKING",
+                      ].includes(dep.status);
+                      return (
+                        <tr
+                          key={dep.id}
+                          className="hover:bg-slate-800/30 transition-colors"
+                        >
+                          <td className="px-4 py-3">
+                            <Badge status={dep.status} />
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-slate-200">
+                            {dep.commitSha.substring(0, 7)}
+                          </td>
+                          <td className="px-4 py-3 text-slate-400">
+                            {dep.branch}
+                          </td>
+                          <td className="px-4 py-3 text-slate-300 font-sans truncate max-w-xs">
+                            {dep.commitMessage || "Manual deployment"}
+                          </td>
+                          <td className="px-4 py-3 text-slate-400">
+                            {dep.durationMs
+                              ? `${(dep.durationMs / 1000).toFixed(1)}s`
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-indigo-400">
+                            {dep.containerPort ? `:${dep.containerPort}` : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right text-slate-400">
+                            {new Date(dep.createdAt).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleOpenLogs(dep)}
+                                className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors text-[11px] inline-flex items-center gap-1"
+                                title="View live logs"
+                              >
+                                <Terminal className="w-3 h-3 text-indigo-400" />
+                                Logs
+                              </button>
+                              {isActive ? (
+                                <button
+                                  onClick={() => handleCancelDeployment(dep.id)}
+                                  disabled={isCancelling}
+                                  className="px-2 py-1 rounded bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-300 transition-colors text-[11px] inline-flex items-center gap-1"
+                                  title="Cancel active deployment"
+                                >
+                                  <XCircle className="w-3 h-3 text-rose-400" />
+                                  Cancel
+                                </button>
+                              ) : dep.status === "SUCCEEDED" ? (
+                                <button
+                                  onClick={() => handleRollbackDeployment(dep)}
+                                  disabled={isRollingBack}
+                                  className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 text-amber-300 transition-colors text-[11px] inline-flex items-center gap-1"
+                                  title="Rollback to this release"
+                                >
+                                  <RotateCcw className="w-3 h-3 text-amber-400" />
+                                  Rollback
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -856,6 +1001,153 @@ export const ProjectDetailPage: React.FC = () => {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Live Deployment Logs Modal */}
+      <Modal
+        isOpen={!!activeLogDeployment}
+        onClose={() => setActiveLogDeployment(null)}
+        title="Deployment Logs"
+        description={
+          activeLogDeployment
+            ? `Deployment ${activeLogDeployment.id.substring(0, 8)} • Commit ${activeLogDeployment.commitSha.substring(0, 7)} (${activeLogDeployment.branch})`
+            : ""
+        }
+        maxWidth="max-w-4xl"
+      >
+        {activeLogDeployment && (
+          <div className="space-y-4">
+            {/* Deployment Metadata Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-950/70 border border-slate-800 rounded-lg text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400">Status:</span>
+                <Badge status={activeLogDeployment.status} />
+                {activeLogDeployment.containerPort && (
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono">
+                    Port :{activeLogDeployment.containerPort}
+                  </span>
+                )}
+                {activeLogDeployment.durationMs ? (
+                  <span className="text-slate-500 font-mono">
+                    {(activeLogDeployment.durationMs / 1000).toFixed(1)}s
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {[
+                  "QUEUED",
+                  "CLONING",
+                  "BUILDING",
+                  "DEPLOYING",
+                  "HEALTH_CHECKING",
+                ].includes(activeLogDeployment.status) && (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    isLoading={isCancelling}
+                    onClick={() =>
+                      handleCancelDeployment(activeLogDeployment.id)
+                    }
+                    icon={<XCircle className="w-3.5 h-3.5" />}
+                  >
+                    Cancel Deployment
+                  </Button>
+                )}
+
+                {activeLogDeployment.status === "SUCCEEDED" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    isLoading={isRollingBack}
+                    onClick={() =>
+                      handleRollbackDeployment(activeLogDeployment)
+                    }
+                    icon={<RotateCcw className="w-3.5 h-3.5 text-amber-400" />}
+                  >
+                    Rollback to this Release
+                  </Button>
+                )}
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleOpenLogs(activeLogDeployment)}
+                  isLoading={isLoadingLogs}
+                  icon={<RefreshCw className="w-3.5 h-3.5" />}
+                >
+                  Refresh
+                </Button>
+              </div>
+            </div>
+
+            {/* Terminal Window */}
+            <div className="bg-slate-950 border border-slate-800 rounded-lg font-mono text-xs overflow-hidden shadow-inner">
+              <div className="px-3 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-slate-400 text-[11px]">
+                <div className="flex items-center gap-1.5">
+                  <Terminal className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Build & Runtime Stream</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {[
+                    "QUEUED",
+                    "CLONING",
+                    "BUILDING",
+                    "DEPLOYING",
+                    "HEALTH_CHECKING",
+                  ].includes(activeLogDeployment.status) ? (
+                    <span className="flex items-center gap-1.5 text-emerald-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Live streaming from worker...
+                    </span>
+                  ) : (
+                    <span className="text-slate-500">Execution completed</span>
+                  )}
+                  <span>({activeLogs.length} events)</span>
+                </div>
+              </div>
+
+              <div className="p-4 max-h-96 overflow-y-auto space-y-1 select-text">
+                {activeLogs.length === 0 ? (
+                  <div className="text-slate-500 py-8 text-center italic">
+                    {isLoadingLogs
+                      ? "Fetching deployment logs..."
+                      : "No logs recorded for this deployment yet."}
+                  </div>
+                ) : (
+                  activeLogs.map((log) => {
+                    const isError = log.level === "ERROR";
+                    const isWarn = log.level === "WARN";
+                    return (
+                      <div
+                        key={log.id}
+                        className={`leading-relaxed text-[11px] flex items-start gap-2 ${
+                          isError
+                            ? "text-rose-400 bg-rose-950/20 px-1 rounded"
+                            : isWarn
+                              ? "text-amber-300 bg-amber-950/20 px-1 rounded"
+                              : "text-slate-300"
+                        }`}
+                      >
+                        <span className="text-slate-600 select-none shrink-0">
+                          {new Date(log.createdAt).toLocaleTimeString()}
+                        </span>
+                        {log.step && (
+                          <span className="text-indigo-400 font-semibold uppercase text-[10px] shrink-0 bg-indigo-950/50 px-1 py-0.5 rounded border border-indigo-900/50">
+                            [{log.step}]
+                          </span>
+                        )}
+                        <span className="break-all whitespace-pre-wrap flex-1">
+                          {log.message}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

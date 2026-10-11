@@ -39,9 +39,11 @@ enum DeploymentStatus {
   BUILDING
   DEPLOYING
   HEALTH_CHECKING
+  SUCCEEDED
   SUCCESS
   FAILED
   CANCELLED
+  TIMED_OUT
   ROLLED_BACK
 }
 
@@ -243,6 +245,8 @@ model Deployment {
   trigger        DeploymentTrigger @default(MANUAL)
   containerId    String?
   containerPort  Int?
+  imageTag       String?
+  imageDigest    String?
   durationMs     Int?
   errorDetails   String?
   rollbackFromId String?

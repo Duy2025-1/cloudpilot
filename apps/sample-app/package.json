@@ -1,0 +1,11 @@
+{
+  "name": "@cloudpilot/sample-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sample containerized Node.js web application for CloudPilot automated deployment verification",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  }
+}

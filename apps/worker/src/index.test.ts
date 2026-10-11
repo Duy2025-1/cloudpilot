@@ -34,11 +34,15 @@ describe("Worker Deployment Definitions", () => {
         DeploymentStatus.FAILED,
       ],
       [DeploymentStatus.HEALTH_CHECKING]: [
+        DeploymentStatus.SUCCEEDED,
         DeploymentStatus.SUCCESS,
         DeploymentStatus.FAILED,
+        DeploymentStatus.TIMED_OUT,
       ],
+      [DeploymentStatus.SUCCEEDED]: [DeploymentStatus.ROLLED_BACK],
       [DeploymentStatus.SUCCESS]: [DeploymentStatus.ROLLED_BACK],
       [DeploymentStatus.FAILED]: [],
+      [DeploymentStatus.TIMED_OUT]: [],
       [DeploymentStatus.CANCELLED]: [],
       [DeploymentStatus.ROLLED_BACK]: [],
     };

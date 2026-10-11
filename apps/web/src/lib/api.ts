@@ -80,12 +80,16 @@ export interface Deployment {
     | "BUILDING"
     | "DEPLOYING"
     | "HEALTH_CHECKING"
+    | "SUCCEEDED"
     | "SUCCESS"
     | "FAILED"
     | "CANCELLED"
+    | "TIMED_OUT"
     | "ROLLED_BACK";
   containerId?: string | null;
   containerPort?: number | null;
+  imageTag?: string | null;
+  imageDigest?: string | null;
   durationMs?: number | null;
   createdAt: string;
   finishedAt?: string | null;
@@ -96,6 +100,30 @@ export interface Deployment {
     message: string;
     createdAt: string;
   }>;
+}
+
+export interface DeploymentLog {
+  id: string;
+  deploymentId: string;
+  level: "INFO" | "WARN" | "ERROR" | "DEBUG";
+  step: string;
+  message: string;
+  createdAt: string;
+}
+
+export interface Release {
+  id: string;
+  projectId: string;
+  environmentId: string;
+  deploymentId: string;
+  version: number;
+  status: "ACTIVE" | "INACTIVE" | "ROLLED_BACK";
+  imageTag?: string | null;
+  activeContainerId?: string | null;
+  activePort?: number | null;
+  activatedAt: string;
+  retiredAt?: string | null;
+  deployment?: Deployment;
 }
 
 export interface GitHubRepo {
@@ -241,6 +269,18 @@ export const api = {
         projectId ? `/deployments?projectId=${projectId}` : "/deployments",
       ),
     get: (id: string) => fetchApi<Deployment>(`/deployments/${id}`),
+    logs: (id: string) => fetchApi<DeploymentLog[]>(`/deployments/${id}/logs`),
+    cancel: (id: string) =>
+      fetchApi<Deployment>(`/deployments/${id}/cancel`, { method: "POST" }),
+    rollback: (data: {
+      projectId: string;
+      environmentId: string;
+      targetReleaseId: string;
+    }) =>
+      fetchApi<Deployment>("/deployments/rollback", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
     trigger: (data: {
       projectId: string;
       environmentId: string;

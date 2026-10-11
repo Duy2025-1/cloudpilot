@@ -7,6 +7,7 @@ interface ModalProps {
   title: string;
   description?: string;
   children: React.ReactNode;
+  maxWidth?: string;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -15,6 +16,7 @@ export const Modal: React.FC<ModalProps> = ({
   title,
   description,
   children,
+  maxWidth,
 }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -35,7 +37,7 @@ export const Modal: React.FC<ModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
       <div
-        className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-6 relative animate-in zoom-in-95 duration-150"
+        className={`w-full ${maxWidth || "max-w-lg"} bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-6 relative animate-in zoom-in-95 duration-150`}
         role="dialog"
         aria-modal="true"
       >
