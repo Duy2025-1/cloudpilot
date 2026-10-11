@@ -131,8 +131,26 @@ The API will be available at: `http://localhost:4000/api/v1`
 - `POST   /api/v1/deployments` - Trigger a deployment
 - `GET    /api/v1/deployments` - List deployments
 - `GET    /api/v1/deployments/:id` - Get deployment status, container port, and logs
+- `GET    /api/v1/github/connect` - Get GitHub OAuth authorization URL with cryptographic state
+- `GET    /api/v1/github/callback` - OAuth callback for token exchange, profile fetch, and encrypted storage
+- `GET    /api/v1/github/status` - Check current user's GitHub connection status
+- `POST   /api/v1/github/disconnect` - Revoke & delete GitHub account link
+- `GET    /api/v1/github/repositories` - List accessible repositories for connected user
+- `GET    /api/v1/github/repositories/:owner/:repo/branches` - List branches of a repository
+- `GET    /api/v1/github/repositories/:owner/:repo/commits` - List recent commits for branch
+- `POST   /api/v1/github/webhooks` - Webhook receiver (HMAC-SHA256 verification, duplicate prevention, push auto-deploy)
 
-### 6. Run Frontend Dashboard
+### 6. GitHub Integration Architecture
+
+#### OAuth App vs. GitHub App Design Decision:
+
+- **Scope & Principle of Least Privilege**: GitHub OAuth is scoped strictly to `read:user` and `repo` (MVP scope for repository listing, branch retrieval, and commit tracking). Tokens are never exposed in URLs, client responses, or logs.
+- **Token Security**: Tokens are encrypted at rest using **AES-256-GCM** with 16-byte authentication tags before storing in PostgreSQL `oauth_accounts`.
+- **HMAC-SHA256 Webhook Verification**: All incoming webhooks must include an `X-Hub-Signature-256` header. The payload is verified against the raw request buffer using `crypto.timingSafeEqual` to prevent timing attacks.
+- **Idempotency & Duplicate Prevention**: Each webhook delivery UUID (`X-GitHub-Delivery`) is recorded in the `webhook_deliveries` table. Duplicate delivery attempts are acknowledged idempotently without triggering duplicate builds.
+- **Branch-Filtered Auto-Deploy**: Push events only trigger automatic deployments if `project.autoDeployEnabled === true` and the pushed Git reference matches `refs/heads/${project.autoDeployBranch}`.
+
+### 7. Run Frontend Dashboard
 
 Start the React + Vite dashboard:
 
@@ -142,7 +160,7 @@ pnpm web:dev
 
 Open `http://localhost:3000` in your browser. All API requests are proxied seamlessly to port 4000 with HttpOnly session cookies.
 
-### 7. Build, Lint & Test
+### 8. Build, Lint & Test
 
 Run all quality checks across the entire workspace:
 

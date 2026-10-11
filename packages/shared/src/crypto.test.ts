@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { encryptSecret, decryptSecret } from "./crypto.js";
+import {
+  encryptSecret,
+  decryptSecret,
+  encryptString,
+  decryptString,
+} from "./crypto.js";
 
 describe("AES-256-GCM Encryption / Decryption", () => {
   const validKey =
@@ -63,5 +68,19 @@ describe("AES-256-GCM Encryption / Decryption", () => {
     };
 
     expect(() => decryptSecret(tamperedTag, validKey)).toThrow();
+  });
+
+  it("should encryptString and decryptString to and from serialized format", () => {
+    const raw = "ghp_my_secret_github_access_token_123456789";
+    const serialized = encryptString(raw, validKey);
+    expect(serialized.split(":")).toHaveLength(3);
+    const decrypted = decryptString(serialized, validKey);
+    expect(decrypted).toBe(raw);
+  });
+
+  it("should throw error when decrypting invalid serialized string", () => {
+    expect(() => decryptString("invalid-format", validKey)).toThrow(
+      "Invalid serialized encrypted string format",
+    );
   });
 });

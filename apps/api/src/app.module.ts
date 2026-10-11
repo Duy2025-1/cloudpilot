@@ -9,6 +9,7 @@ import { HealthModule } from "./modules/health/health.module.js";
 import { ProjectsModule } from "./modules/projects/projects.module.js";
 import { EnvironmentsModule } from "./modules/environments/environments.module.js";
 import { DeploymentsModule } from "./modules/deployments/deployments.module.js";
+import { GitHubModule } from "./modules/github/github.module.js";
 import { LoggingMiddleware } from "./common/middleware/logging.middleware.js";
 
 @Module({
@@ -29,6 +30,7 @@ import { LoggingMiddleware } from "./common/middleware/logging.middleware.js";
     ProjectsModule,
     EnvironmentsModule,
     DeploymentsModule,
+    GitHubModule,
   ],
   providers: [
     {

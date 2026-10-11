@@ -60,3 +60,28 @@ export function decryptSecret(
 
   return decrypted;
 }
+
+/**
+ * Encrypts a string and serializes into format `iv:authTag:encryptedValue`
+ */
+export function encryptString(plainText: string, secretKeyHex: string): string {
+  const enc = encryptSecret(plainText, secretKeyHex);
+  return `${enc.iv}:${enc.authTag}:${enc.encryptedValue}`;
+}
+
+/**
+ * Decrypts a serialized string in format `iv:authTag:encryptedValue`
+ */
+export function decryptString(
+  serialized: string,
+  secretKeyHex: string,
+): string {
+  const parts = serialized.split(":");
+  if (parts.length !== 3) {
+    throw new Error(
+      "Invalid serialized encrypted string format. Expected iv:authTag:encryptedValue",
+    );
+  }
+  const [iv, authTag, encryptedValue] = parts;
+  return decryptSecret({ iv, authTag, encryptedValue }, secretKeyHex);
+}

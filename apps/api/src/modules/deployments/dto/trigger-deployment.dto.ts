@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsOptional, Matches } from "class-validator";
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  Matches,
+  IsEnum,
+} from "class-validator";
+import { DeploymentTrigger } from "@cloudpilot/database";
 
 export class TriggerDeploymentDto {
   @IsString()
@@ -24,4 +31,8 @@ export class TriggerDeploymentDto {
   @IsString()
   @IsOptional()
   commitMessage?: string;
+
+  @IsEnum(DeploymentTrigger)
+  @IsOptional()
+  trigger?: DeploymentTrigger;
 }

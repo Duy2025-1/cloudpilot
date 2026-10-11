@@ -8,6 +8,7 @@ import {
   IsInt,
   Min,
   Max,
+  IsBoolean,
 } from "class-validator";
 
 export class CreateProjectDto {
@@ -34,15 +35,38 @@ export class CreateProjectDto {
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^(https?:\/\/|git@).+\.git$/, {
-    message:
-      "Repository URL must be a valid HTTP(S) or SSH Git URL ending with .git",
+  @Matches(/^(https?:\/\/|git@)[a-zA-Z0-9._~:/?#[\]@!$&'()*+,;=-]+$/, {
+    message: "Repository URL must be a valid HTTP(S) or SSH Git URL",
   })
   repositoryUrl!: string;
 
   @IsString()
   @IsOptional()
+  repositoryId?: string;
+
+  @IsString()
+  @IsOptional()
+  repositoryFullName?: string;
+
+  @IsString()
+  @IsOptional()
+  repositoryOwner?: string;
+
+  @IsString()
+  @IsOptional()
   defaultBranch?: string;
+
+  @IsString()
+  @IsOptional()
+  autoDeployBranch?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  autoDeployEnabled?: boolean;
+
+  @IsString()
+  @IsOptional()
+  webhookSecret?: string;
 
   @IsInt()
   @IsOptional()

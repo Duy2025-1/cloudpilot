@@ -69,6 +69,8 @@ enum AuditAction {
   USER_REGISTER
   USER_LOGOUT
   OAUTH_CONNECT
+  OAUTH_DISCONNECT
+  WEBHOOK_RECEIVED
   PROJECT_CREATE
   PROJECT_UPDATE
   PROJECT_DELETE
@@ -125,6 +127,9 @@ model OAuthAccount {
   user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   provider             OAuthProvider
   providerAccountId    String
+  username             String?
+  avatarUrl            String?
+  scope                String?
   accessTokenEncrypted String?
   refreshTokenEncrypted String?
   expiresAt            DateTime?
@@ -137,32 +142,39 @@ model OAuthAccount {
 }
 
 model Project {
-  id            String         @id @default(cuid())
-  name          String
-  slug          String         @unique
-  description   String?
-  repositoryUrl String
-  defaultBranch String         @default("main")
-  rootDirectory String?
-  buildCommand  String?
-  startCommand  String?
-  port          Int            @default(3000)
-  memoryLimitMb Int            @default(512)
-  cpuLimit      Float          @default(0.5)
-  status        ProjectStatus  @default(IDLE)
-  ownerId       String
-  owner         User           @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                 String         @id @default(cuid())
+  name               String
+  slug               String         @unique
+  description        String?
+  repositoryUrl      String
+  repositoryId       String?        // Immutable GitHub repository numeric ID
+  repositoryFullName String?        // "owner/repo"
+  repositoryOwner    String?        // "owner"
+  defaultBranch      String         @default("main")
+  autoDeployBranch   String?        @default("main")
+  autoDeployEnabled  Boolean        @default(true)
+  webhookSecret      String?
+  rootDirectory      String?
+  buildCommand       String?
+  startCommand       String?
+  port               Int            @default(3000)
+  memoryLimitMb      Int            @default(512)
+  cpuLimit           Float          @default(0.5)
+  status             ProjectStatus  @default(IDLE)
+  ownerId            String
+  owner              User           @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
-  members       ProjectMember[]
-  environments  Environment[]
-  deployments   Deployment[]
-  releases      Release[]
-  auditLogs     AuditLog[]
+  members            ProjectMember[]
+  environments       Environment[]
+  deployments        Deployment[]
+  releases           Release[]
+  auditLogs          AuditLog[]
 
   @@index([ownerId])
   @@index([slug])
+  @@index([repositoryId])
   @@map("projects")
 }
 
@@ -302,3 +314,17 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+model WebhookDelivery {
+  id           String   @id // GitHub X-GitHub-Delivery UUID
+  event        String   // "push", "ping", etc.
+  repositoryId String?
+  status       String   // "PROCESSED", "IGNORED", "FAILED"
+  payload      Json?
+  createdAt    DateTime @default(now())
+
+  @@index([repositoryId])
+  @@index([createdAt])
+  @@map("webhook_deliveries")
+}
+

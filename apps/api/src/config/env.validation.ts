@@ -5,6 +5,10 @@ export interface EnvironmentVariables {
   REDIS_URL: string;
   ENCRYPTION_MASTER_KEY: string;
   JWT_SECRET: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
+  GITHUB_REDIRECT_URI?: string;
+  GITHUB_WEBHOOK_SECRET?: string;
 }
 
 export function validateEnvironment(
@@ -66,5 +70,13 @@ export function validateEnvironment(
     REDIS_URL: redisUrl,
     ENCRYPTION_MASTER_KEY: encryptionKey,
     JWT_SECRET: jwtSecret,
+    GITHUB_CLIENT_ID: config.GITHUB_CLIENT_ID as string | undefined,
+    GITHUB_CLIENT_SECRET: config.GITHUB_CLIENT_SECRET as string | undefined,
+    GITHUB_REDIRECT_URI:
+      (config.GITHUB_REDIRECT_URI as string) ||
+      `http://localhost:${port}/api/v1/github/callback`,
+    GITHUB_WEBHOOK_SECRET:
+      (config.GITHUB_WEBHOOK_SECRET as string) ||
+      "cloudpilot_dev_webhook_secret_key_12345",
   };
 }

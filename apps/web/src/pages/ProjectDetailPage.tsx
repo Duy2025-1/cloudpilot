@@ -11,8 +11,12 @@ import {
   Shield,
   Terminal,
   AlertTriangle,
+  Zap,
+  Copy,
+  Check,
 } from "lucide-react";
-import { api, Project, EnvVar, Deployment } from "../lib/api.js";
+import { GithubIcon } from "../components/ui/GithubIcon.js";
+import { api, Project, EnvVar, Deployment, GitHubCommit } from "../lib/api.js";
 import { Button } from "../components/ui/Button.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Card } from "../components/ui/Card.js";
@@ -48,6 +52,52 @@ export const ProjectDetailPage: React.FC = () => {
   const [deployCommitSha, setDeployCommitSha] = useState("");
   const [deployCommitMsg, setDeployCommitMsg] = useState("");
   const [isDeploying, setIsDeploying] = useState(false);
+  const [recentCommits, setRecentCommits] = useState<GitHubCommit[]>([]);
+  const [isLoadingCommits, setIsLoadingCommits] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+
+  const handleOpenDeployModal = async () => {
+    setIsDeployModalOpen(true);
+    if (!project) return;
+
+    // Check if we can load commits from GitHub
+    let owner = project.repositoryOwner;
+    let repoName = "";
+
+    if (
+      project.repositoryFullName &&
+      project.repositoryFullName.includes("/")
+    ) {
+      const parts = project.repositoryFullName.split("/");
+      owner = parts[0] || "";
+      repoName = parts[1] || "";
+    } else if (project.repositoryUrl.includes("github.com/")) {
+      const match = project.repositoryUrl.match(
+        /github\.com\/([^/]+)\/([^/.]+)/,
+      );
+      if (match) {
+        owner = match[1] || "";
+        repoName = match[2] || "";
+      }
+    }
+
+    if (owner && repoName) {
+      setIsLoadingCommits(true);
+      try {
+        const commits = await api.github.commits(
+          owner,
+          repoName,
+          project.defaultBranch,
+        );
+        setRecentCommits(commits);
+      } catch {
+        // Fallback silently to manual SHA input if GitHub account is not connected or token lacks permission
+        setRecentCommits([]);
+      } finally {
+        setIsLoadingCommits(false);
+      }
+    }
+  };
 
   // Delete Modal State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -228,11 +278,28 @@ export const ProjectDetailPage: React.FC = () => {
                 rel="noreferrer"
                 className="hover:text-indigo-400 transition-colors flex items-center gap-1"
               >
-                <span>{project.repositoryUrl.replace(/^https?:\/\//, "")}</span>
+                <GithubIcon className="w-3.5 h-3.5" />
+                <span>
+                  {project.repositoryFullName ||
+                    project.repositoryUrl.replace(/^https?:\/\//, "")}
+                </span>
                 <ExternalLink className="w-3 h-3" />
               </a>
               <span>•</span>
               <span>Port {project.port}</span>
+              <span>•</span>
+              <span
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-sans ${
+                  project.autoDeployEnabled
+                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                    : "bg-slate-800 text-slate-400 border border-slate-700"
+                }`}
+              >
+                <Zap className="w-3 h-3" />
+                {project.autoDeployEnabled
+                  ? `Auto-Deploy: ${project.autoDeployBranch || project.defaultBranch}`
+                  : "Auto-Deploy: Off"}
+              </span>
             </div>
           </div>
         </div>
@@ -241,7 +308,7 @@ export const ProjectDetailPage: React.FC = () => {
           <Button
             variant="primary"
             size="sm"
-            onClick={() => setIsDeployModalOpen(true)}
+            onClick={handleOpenDeployModal}
             icon={<Play className="w-3.5 h-3.5" />}
           >
             Trigger Deployment
@@ -302,7 +369,7 @@ export const ProjectDetailPage: React.FC = () => {
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => setIsDeployModalOpen(true)}
+                  onClick={handleOpenDeployModal}
                   icon={<Play className="w-3.5 h-3.5" />}
                 >
                   Deploy Commit
@@ -550,6 +617,92 @@ export const ProjectDetailPage: React.FC = () => {
             </div>
           </Card>
 
+          {/* GitHub & Webhook Configuration */}
+          <Card
+            title="GitHub & Webhook Automation"
+            description="Automatic deployment triggers and repository metadata"
+          >
+            <div className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-lg space-y-1">
+                  <div className="text-slate-400 font-medium">
+                    Linked Repository
+                  </div>
+                  <div className="text-white font-mono font-semibold">
+                    {project.repositoryFullName || "Custom Git URL"}
+                  </div>
+                  {project.repositoryId && (
+                    <div className="text-[11px] text-slate-500">
+                      GitHub Repo ID: {project.repositoryId}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-lg space-y-1">
+                  <div className="text-slate-400 font-medium">
+                    Auto-Deploy Status
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1 font-semibold ${
+                        project.autoDeployEnabled
+                          ? "text-emerald-400"
+                          : "text-slate-400"
+                      }`}
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      {project.autoDeployEnabled ? "Enabled" : "Disabled"}
+                    </span>
+                    <span className="text-slate-500">•</span>
+                    <span className="text-slate-300 font-mono">
+                      branch:{" "}
+                      {project.autoDeployBranch || project.defaultBranch}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-300 font-semibold">
+                    GitHub Webhook Payload URL
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const url = `${window.location.origin}/api/v1/github/webhooks`;
+                      navigator.clipboard.writeText(url);
+                      setCopiedWebhook(true);
+                      setTimeout(() => setCopiedWebhook(false), 2000);
+                    }}
+                    icon={
+                      copiedWebhook ? (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )
+                    }
+                  >
+                    {copiedWebhook ? "Copied" : "Copy URL"}
+                  </Button>
+                </div>
+                <div className="p-2 bg-slate-900 border border-slate-800 rounded font-mono text-[11px] text-indigo-400 select-all break-all">
+                  {typeof window !== "undefined"
+                    ? `${window.location.origin}/api/v1/github/webhooks`
+                    : "/api/v1/github/webhooks"}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Configure this endpoint in your GitHub Repository settings
+                  (Settings &gt; Webhooks &gt; Add webhook) with Content type{" "}
+                  <code className="text-slate-300">application/json</code> and
+                  event{" "}
+                  <code className="text-slate-300">Just the push event</code>.
+                </p>
+              </div>
+            </div>
+          </Card>
+
           {/* Danger Zone */}
           <Card
             title="Danger Zone"
@@ -578,16 +731,66 @@ export const ProjectDetailPage: React.FC = () => {
         isOpen={isDeployModalOpen}
         onClose={() => setIsDeployModalOpen(false)}
         title="Trigger Deployment"
-        description={`Deploy commit to ${project.name}`}
+        description={`Deploy commit to ${project.name} (${project.defaultBranch})`}
       >
         <form onSubmit={handleTriggerDeploy} className="space-y-4">
+          {/* Recent GitHub Commits Picker */}
+          {isLoadingCommits ? (
+            <div className="py-4 flex items-center justify-center gap-2 text-xs text-slate-400">
+              <LoadingSpinner size="sm" />
+              <span>Fetching latest commits from GitHub...</span>
+            </div>
+          ) : recentCommits.length > 0 ? (
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-300 tracking-wider uppercase">
+                Select from Recent GitHub Commits
+              </label>
+              <div className="max-h-48 overflow-y-auto space-y-1.5 p-1 bg-slate-950/50 border border-slate-800 rounded-lg">
+                {recentCommits.map((c) => {
+                  const isSelected = deployCommitSha === c.sha;
+                  return (
+                    <div
+                      key={c.sha}
+                      onClick={() => {
+                        setDeployCommitSha(c.sha);
+                        setDeployCommitMsg(c.message);
+                      }}
+                      className={`p-2 rounded border text-xs cursor-pointer transition-all flex items-start justify-between gap-2 ${
+                        isSelected
+                          ? "bg-indigo-950/40 border-indigo-500/70 text-white"
+                          : "bg-slate-900/40 border-slate-800/80 hover:bg-slate-900 hover:border-slate-700 text-slate-300"
+                      }`}
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-indigo-400 font-semibold">
+                            {c.shortSha}
+                          </span>
+                          <span className="truncate font-medium text-slate-200">
+                            {c.message}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          {c.author} • {new Date(c.date).toLocaleString()}
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <Check className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           <Input
             label="Git Commit SHA *"
             placeholder="e.g. 7f9a2b1c8e3d..."
             required
             value={deployCommitSha}
             onChange={(e) => setDeployCommitSha(e.target.value)}
-            hint="Full or short git commit SHA"
+            hint="Full or short git commit SHA to check out and build"
           />
 
           <Input

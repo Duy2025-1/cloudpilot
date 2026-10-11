@@ -43,7 +43,7 @@ export class DeploymentsService {
         commitMessage: dto.commitMessage,
         branch,
         status: DeploymentStatus.QUEUED,
-        trigger: DeploymentTrigger.MANUAL,
+        trigger: dto.trigger || DeploymentTrigger.MANUAL,
         triggeredById: userId,
         logs: {
           create: {

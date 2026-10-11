@@ -19,7 +19,13 @@ export interface Project {
   slug: string;
   description?: string | null;
   repositoryUrl: string;
+  repositoryId?: string | null;
+  repositoryFullName?: string | null;
+  repositoryOwner?: string | null;
   defaultBranch: string;
+  autoDeployBranch?: string | null;
+  autoDeployEnabled?: boolean;
+  webhookSecret?: string | null;
   port: number;
   memoryLimitMb: number;
   cpuLimit: number;
@@ -92,6 +98,41 @@ export interface Deployment {
   }>;
 }
 
+export interface GitHubRepo {
+  id: number;
+  name: string;
+  fullName: string;
+  owner: string;
+  private: boolean;
+  htmlUrl: string;
+  defaultBranch: string;
+  description: string | null;
+  updatedAt: string;
+}
+
+export interface GitHubBranch {
+  name: string;
+  commitSha: string;
+  protected: boolean;
+}
+
+export interface GitHubCommit {
+  sha: string;
+  shortSha: string;
+  message: string;
+  author: string;
+  date: string;
+  url: string;
+}
+
+export interface GitHubStatus {
+  connected: boolean;
+  configured: boolean;
+  username?: string;
+  avatarUrl?: string;
+  scope?: string;
+}
+
 const API_BASE = "/api/v1";
 
 export async function fetchApi<T>(
@@ -159,7 +200,12 @@ export const api = {
       name: string;
       slug: string;
       repositoryUrl: string;
+      repositoryId?: string;
+      repositoryFullName?: string;
+      repositoryOwner?: string;
       defaultBranch?: string;
+      autoDeployBranch?: string;
+      autoDeployEnabled?: boolean;
       port?: number;
       description?: string;
     }) =>
@@ -206,5 +252,27 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+  },
+  github: {
+    connect: () =>
+      fetchApi<{
+        authorizationUrl: string;
+        state: string;
+        configured: boolean;
+      }>("/github/connect"),
+    status: () => fetchApi<GitHubStatus>("/github/status"),
+    disconnect: () =>
+      fetchApi<{ success: boolean }>("/github/disconnect", {
+        method: "POST",
+      }),
+    repositories: () => fetchApi<GitHubRepo[]>("/github/repositories"),
+    branches: (owner: string, repo: string) =>
+      fetchApi<GitHubBranch[]>(
+        `/github/repositories/${owner}/${repo}/branches`,
+      ),
+    commits: (owner: string, repo: string, branch?: string) =>
+      fetchApi<GitHubCommit[]>(
+        `/github/repositories/${owner}/${repo}/commits${branch ? `?branch=${encodeURIComponent(branch)}` : ""}`,
+      ),
   },
 };
