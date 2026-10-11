@@ -111,8 +111,39 @@ export class DeploymentQueueService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async enqueueDeployment(payload: DeploymentJobPayload): Promise<boolean> {
+    return this.addJob(payload);
+  }
+
   get isQueueReady(): boolean {
     return this.isConnected;
+  }
+
+  async checkHealth(): Promise<{
+    status: "connected" | "disconnected";
+    latencyMs: number;
+    counts?: Record<string, number>;
+  }> {
+    if (!this.redisClient) {
+      return { status: "disconnected", latencyMs: -1 };
+    }
+    const start = Date.now();
+    try {
+      await this.redisClient.ping();
+      const latencyMs = Date.now() - start;
+      let counts: Record<string, number> | undefined;
+      if (this.queue) {
+        counts = (await this.queue.getJobCounts(
+          "active",
+          "waiting",
+          "completed",
+          "failed",
+        )) as Record<string, number>;
+      }
+      return { status: "connected", latencyMs, counts };
+    } catch {
+      return { status: "disconnected", latencyMs: -1 };
+    }
   }
 
   async onModuleDestroy() {

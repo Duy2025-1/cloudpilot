@@ -44,6 +44,9 @@ describe("DeploymentRunnerService - Core Engine Tests", () => {
         }),
       },
       deployment: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ status: DeploymentStatus.QUEUED }),
         update: vi.fn().mockResolvedValue({}),
       },
       release: {
@@ -302,6 +305,40 @@ describe("DeploymentRunnerService - Core Engine Tests", () => {
           status: ReleaseStatus.ACTIVE,
         }),
       });
+    });
+  });
+
+  describe("Scenario 6: Worker Restart & Idempotency / Cancellation Race", () => {
+    it("should skip execution if deployment was already CANCELLED before worker picks it up", async () => {
+      mockPrisma.deployment.findUnique.mockResolvedValueOnce({
+        status: DeploymentStatus.CANCELLED,
+      });
+
+      await runner.runDeployment(samplePayload);
+
+      expect(mockGit.cloneAndCheckout).not.toHaveBeenCalled();
+      expect(mockDocker.buildImage).not.toHaveBeenCalled();
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        samplePayload.deploymentId,
+        "CANCEL",
+        expect.stringContaining("cancelled prior to worker execution"),
+      );
+    });
+
+    it("should skip execution if deployment was already SUCCEEDED (duplicate BullMQ job)", async () => {
+      mockPrisma.deployment.findUnique.mockResolvedValueOnce({
+        status: DeploymentStatus.SUCCEEDED,
+      });
+
+      await runner.runDeployment(samplePayload);
+
+      expect(mockGit.cloneAndCheckout).not.toHaveBeenCalled();
+      expect(mockDocker.buildImage).not.toHaveBeenCalled();
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        samplePayload.deploymentId,
+        "DUPLICATE",
+        expect.stringContaining("already SUCCEEDED"),
+      );
     });
   });
 });

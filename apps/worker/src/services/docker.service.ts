@@ -210,6 +210,7 @@ CMD ["npm", "start"]
       `--cpus=${Math.max(0.1, cpuLimit)}`,
       "--security-opt",
       "no-new-privileges:true",
+      "--pids-limit=100",
       "--restart",
       "unless-stopped",
     ];

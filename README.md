@@ -199,7 +199,23 @@ Run all quality checks across the entire workspace:
 ```bash
 pnpm build        # Compile TypeScript across all packages & apps
 pnpm typecheck    # Strict TypeScript typechecking (tsc --noEmit)
-pnpm test         # Run all 55 Vitest unit and integration test suites
+pnpm test         # Run all Vitest unit and integration test suites
 pnpm lint         # Run ESLint across monorepo
 pnpm format:check # Verify Prettier code style
 ```
+
+### 10. Database Backup & Disaster Recovery
+
+CloudPilot includes an atomic, dependency-ordered database export and recovery utility:
+
+```bash
+# Export all tables into a structured JSON backup
+pnpm db:backup
+
+# Restore database atomically inside a single transaction
+pnpm db:restore backup-cloudpilot-<timestamp>.json
+```
+
+### 11. Security & Production Readiness
+
+For the full Threat Model (STRIDE), Security Checklist, and analysis of residual risks and mitigation strategies, see [SECURITY.md](file:///d:/%C4%91%E1%BB%93%20%C3%A1n%20b%E1%BA%A3n%20th%C3%A2n/CLOUDPILOT/SECURITY.md).

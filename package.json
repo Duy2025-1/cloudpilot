@@ -10,6 +10,8 @@
     "db:migrate": "pnpm --filter @cloudpilot/database db:migrate",
     "db:push": "pnpm --filter @cloudpilot/database db:push",
     "db:seed": "pnpm --filter @cloudpilot/database db:seed",
+    "db:backup": "pnpm --filter @cloudpilot/database db:backup",
+    "db:restore": "pnpm --filter @cloudpilot/database db:restore",
     "db:studio": "pnpm --filter @cloudpilot/database db:studio",
     "api:dev": "pnpm --filter @cloudpilot/api start:dev",
     "web:dev": "pnpm --filter @cloudpilot/web dev",

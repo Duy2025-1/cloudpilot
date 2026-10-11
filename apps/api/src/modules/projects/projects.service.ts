@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
   Logger,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service.js";
@@ -28,6 +29,15 @@ export class ProjectsService {
     if (existing) {
       throw new ConflictException(
         `Project with slug '${dto.slug}' already exists`,
+      );
+    }
+
+    // SSRF Protection: Reject private/loopback/cloud metadata IP addresses
+    const forbiddenHostPattern =
+      /(^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|169\.254\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|\[::1\]))/i;
+    if (forbiddenHostPattern.test(dto.repositoryUrl)) {
+      throw new BadRequestException(
+        "Repository URL cannot target loopback, private network, or cloud metadata addresses (SSRF protection)",
       );
     }
 

@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
 export * from "@prisma/client";
+export * from "./backup-restore.js";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;

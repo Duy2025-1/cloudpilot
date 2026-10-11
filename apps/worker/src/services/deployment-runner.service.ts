@@ -66,7 +66,31 @@ export class DeploymentRunnerService {
     let candidatePort: number | undefined;
 
     try {
-      // 1. Initial verification & status update to CLONING
+      // 1. Initial verification: Check if already CANCELLED or SUCCEEDED (e.g. worker restart or cancel race)
+      const current = await this.prisma.deployment.findUnique({
+        where: { id: deploymentId },
+        select: { status: true },
+      });
+
+      if (current?.status === DeploymentStatus.CANCELLED) {
+        await this.logger.info(
+          deploymentId,
+          "CANCEL",
+          "Deployment was cancelled prior to worker execution. Skipping.",
+        );
+        return;
+      }
+
+      if (current?.status === DeploymentStatus.SUCCEEDED) {
+        await this.logger.info(
+          deploymentId,
+          "DUPLICATE",
+          "Deployment is already SUCCEEDED. Skipping duplicate job execution.",
+        );
+        return;
+      }
+
+      // Status update to CLONING
       await this.prisma.deployment.update({
         where: { id: deploymentId },
         data: {

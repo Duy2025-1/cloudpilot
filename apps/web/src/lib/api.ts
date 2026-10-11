@@ -264,10 +264,14 @@ export const api = {
       ),
   },
   deployments: {
-    list: (projectId?: string) =>
-      fetchApi<Deployment[]>(
+    list: async (projectId?: string) => {
+      const res = await fetchApi<any>(
         projectId ? `/deployments?projectId=${projectId}` : "/deployments",
-      ),
+      );
+      return Array.isArray(res)
+        ? (res as Deployment[])
+        : (res?.data as Deployment[]) || [];
+    },
     get: (id: string) => fetchApi<Deployment>(`/deployments/${id}`),
     logs: (id: string) => fetchApi<DeploymentLog[]>(`/deployments/${id}/logs`),
     cancel: (id: string) =>

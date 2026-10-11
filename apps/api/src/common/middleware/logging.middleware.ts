@@ -8,11 +8,12 @@ export class LoggingMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
     const { method, originalUrl, ip } = req;
     const start = Date.now();
+    const correlationId = (req as any).correlationId || "-";
 
     res.on("finish", () => {
       const { statusCode } = res;
       const duration = Date.now() - start;
-      const logMessage = `${method} ${originalUrl} ${statusCode} - ${duration}ms [${ip}]`;
+      const logMessage = `[${correlationId}] ${method} ${originalUrl} ${statusCode} - ${duration}ms [${ip}]`;
 
       if (statusCode >= 500) {
         this.logger.error(logMessage);

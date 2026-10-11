@@ -11,6 +11,7 @@ import { EnvironmentsModule } from "./modules/environments/environments.module.j
 import { DeploymentsModule } from "./modules/deployments/deployments.module.js";
 import { GitHubModule } from "./modules/github/github.module.js";
 import { LoggingMiddleware } from "./common/middleware/logging.middleware.js";
+import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware.js";
 
 @Module({
   imports: [
@@ -41,6 +42,6 @@ import { LoggingMiddleware } from "./common/middleware/logging.middleware.js";
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(LoggingMiddleware).forRoutes("*");
+    consumer.apply(CorrelationIdMiddleware, LoggingMiddleware).forRoutes("*");
   }
 }
