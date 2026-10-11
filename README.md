@@ -3,7 +3,7 @@
 > **Automated Web Application Deployment & Management Platform**  
 > _Nền tảng tự lưu trữ (Self-hosted PaaS) quản lý và tự động hóa triển khai ứng dụng web containerized từ Git repositories._
 
-[![CI Pipeline](https://github.com/your-username/cloudpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/cloudpilot/actions/workflows/ci.yml)
+[![CI Pipeline](https://github.com/Duy2025-1/cloudpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Duy2025-1/cloudpilot/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-11.0-red.svg)](https://nestjs.com/)
 [![React](https://img.shields.io/badge/React-19.3-cyan.svg)](https://react.dev/)
@@ -288,7 +288,7 @@ erDiagram
 ### Bước 1: Clone repository và cài dependencies
 
 ```bash
-git clone https://github.com/your-username/cloudpilot.git
+git clone https://github.com/Duy2025-1/cloudpilot.git
 cd cloudpilot
 pnpm install
 ```
