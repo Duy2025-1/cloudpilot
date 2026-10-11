@@ -1,0 +1,24 @@
+{
+  "name": "cloudpilot-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@12.6.0",
+  "scripts": {
+    "dev:infra": "docker compose -f docker/docker-compose.dev.yml up -d",
+    "dev:infra:down": "docker compose -f docker/docker-compose.dev.yml down",
+    "db:generate": "pnpm --filter @cloudpilot/database db:generate",
+    "db:migrate": "pnpm --filter @cloudpilot/database db:migrate",
+    "db:push": "pnpm --filter @cloudpilot/database db:push",
+    "db:studio": "pnpm --filter @cloudpilot/database db:studio",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "pnpm -r run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml}\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  }
+}

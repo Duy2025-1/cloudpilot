@@ -1,0 +1,182 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  DEVELOPER
+  VIEWER
+}
+
+enum ProjectStatus {
+  IDLE
+  BUILDING
+  RUNNING
+  FAILED
+  STOPPED
+}
+
+enum DeploymentStatus {
+  QUEUED
+  CLONING
+  BUILDING
+  DEPLOYING
+  HEALTH_CHECKING
+  SUCCESS
+  FAILED
+  CANCELLED
+  ROLLED_BACK
+}
+
+enum DeploymentTrigger {
+  MANUAL
+  GITHUB_WEBHOOK
+  ROLLBACK
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+  DEBUG
+}
+
+enum AuditAction {
+  USER_LOGIN
+  USER_REGISTER
+  PROJECT_CREATE
+  PROJECT_UPDATE
+  PROJECT_DELETE
+  ENV_CREATE
+  ENV_UPDATE
+  ENV_DELETE
+  DEPLOYMENT_TRIGGER
+  DEPLOYMENT_CANCEL
+  DEPLOYMENT_ROLLBACK
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String
+  name         String
+  role         Role         @default(DEVELOPER)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  projects     Project[]
+  deployments  Deployment[] @relation("UserDeployments")
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+model Project {
+  id                  String                @id @default(cuid())
+  name                String
+  slug                String                @unique
+  description         String?
+  repositoryUrl       String
+  defaultBranch       String                @default("main")
+  rootDirectory       String?
+  buildCommand        String?
+  startCommand        String?
+  port                Int                   @default(3000)
+  memoryLimitMb       Int                   @default(512)
+  cpuLimit            Float                 @default(0.5)
+  status              ProjectStatus         @default(IDLE)
+  currentDeploymentId String?
+  userId              String
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  deployments         Deployment[]
+  envVars             EnvironmentVariable[]
+  auditLogs           AuditLog[]
+
+  @@index([userId])
+  @@index([slug])
+  @@map("projects")
+}
+
+model EnvironmentVariable {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key            String
+  encryptedValue String
+  iv             String
+  authTag        String
+  isSecret       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([projectId, key])
+  @@index([projectId])
+  @@map("environment_variables")
+}
+
+model Deployment {
+  id             String            @id @default(cuid())
+  projectId      String
+  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  commitSha      String
+  commitMessage  String?
+  branch         String
+  status         DeploymentStatus  @default(QUEUED)
+  trigger        DeploymentTrigger @default(MANUAL)
+  containerId    String?
+  containerPort  Int?
+  durationMs     Int?
+  errorDetails   String?
+  rollbackFromId String?
+  triggeredById  String?
+  triggeredBy    User?             @relation("UserDeployments", fields: [triggeredById], references: [id], onDelete: SetNull)
+  createdAt      DateTime          @default(now())
+  startedAt      DateTime?
+  finishedAt     DateTime?
+
+  logs           DeploymentLog[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("deployments")
+}
+
+model DeploymentLog {
+  id           String     @id @default(cuid())
+  deploymentId String
+  deployment   Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  level        LogLevel   @default(INFO)
+  step         String     // e.g. "CLONE", "BUILD", "DEPLOY", "HEALTHCHECK"
+  message      String
+  createdAt    DateTime   @default(now())
+
+  @@index([deploymentId, createdAt])
+  @@map("deployment_logs")
+}
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  projectId String?
+  project   Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  action    AuditAction
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
