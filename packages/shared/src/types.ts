@@ -1,16 +1,11 @@
-import {
-  AuditAction,
-  DeploymentStatus,
-  DeploymentTrigger,
-  LogLevel,
-  ProjectStatus,
-  UserRole,
-} from "./enums.js";
+import { DeploymentTrigger, LogLevel } from "./enums.js";
 
 export interface DeploymentJobPayload {
   deploymentId: string;
   projectId: string;
   projectName: string;
+  environmentId: string;
+  environmentName: string;
   repositoryUrl: string;
   commitSha: string;
   branch: string;
@@ -44,6 +39,12 @@ export interface DecryptedEnvVar {
   key: string;
   value: string;
   isSecret: boolean;
+}
+
+export interface EncryptedData {
+  encryptedValue: string;
+  iv: string;
+  authTag: string;
 }
 
 export interface ApiResponse<T> {

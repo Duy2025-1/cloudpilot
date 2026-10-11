@@ -1,0 +1,15 @@
+{
+  "name": "@cloudpilot/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudpilot/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudpilot/tsconfig": "workspace:*",
+    "typescript": "^5.8.2"
+  }
+}

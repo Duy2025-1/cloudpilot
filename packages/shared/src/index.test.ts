@@ -30,9 +30,10 @@ describe("Shared Enums", () => {
     expect(ProjectStatus.STOPPED).toBe("STOPPED");
   });
 
-  it("should define AuditAction and LogLevel values", () => {
+  it("should define AuditAction, LogLevel and DeploymentTrigger values", () => {
     expect(LogLevel.INFO).toBe("INFO");
     expect(LogLevel.ERROR).toBe("ERROR");
+    expect(DeploymentTrigger.MANUAL).toBe("MANUAL");
     expect(AuditAction.PROJECT_CREATE).toBe("PROJECT_CREATE");
     expect(AuditAction.DEPLOYMENT_TRIGGER).toBe("DEPLOYMENT_TRIGGER");
   });

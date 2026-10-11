@@ -1,0 +1,23 @@
+{
+  "name": "@cloudpilot/worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cloudpilot/database": "workspace:*",
+    "@cloudpilot/shared": "workspace:*",
+    "bullmq": "^5.41.6",
+    "ioredis": "^5.6.0"
+  },
+  "devDependencies": {
+    "@cloudpilot/tsconfig": "workspace:*",
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.7"
+  }
+}

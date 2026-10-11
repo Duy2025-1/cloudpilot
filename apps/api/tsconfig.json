@@ -1,0 +1,13 @@
+{
+  "extends": "@cloudpilot/tsconfig/node.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+}

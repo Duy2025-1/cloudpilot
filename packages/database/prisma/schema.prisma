@@ -13,6 +13,18 @@ enum Role {
   VIEWER
 }
 
+enum OAuthProvider {
+  GITHUB
+  GITLAB
+}
+
+enum ProjectRole {
+  OWNER
+  MAINTAINER
+  DEVELOPER
+  VIEWER
+}
+
 enum ProjectStatus {
   IDLE
   BUILDING
@@ -39,6 +51,12 @@ enum DeploymentTrigger {
   ROLLBACK
 }
 
+enum ReleaseStatus {
+  ACTIVE
+  INACTIVE
+  ROLLED_BACK
+}
+
 enum LogLevel {
   INFO
   WARN
@@ -49,76 +67,137 @@ enum LogLevel {
 enum AuditAction {
   USER_LOGIN
   USER_REGISTER
+  OAUTH_CONNECT
   PROJECT_CREATE
   PROJECT_UPDATE
   PROJECT_DELETE
+  MEMBER_ADD
+  MEMBER_UPDATE
+  MEMBER_REMOVE
   ENV_CREATE
   ENV_UPDATE
   ENV_DELETE
   DEPLOYMENT_TRIGGER
   DEPLOYMENT_CANCEL
   DEPLOYMENT_ROLLBACK
+  RELEASE_ACTIVATE
 }
 
 model User {
   id           String       @id @default(cuid())
   email        String       @unique
-  passwordHash String
+  passwordHash String?
   name         String
+  avatarUrl    String?
   role         Role         @default(DEVELOPER)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  projects     Project[]
-  deployments  Deployment[] @relation("UserDeployments")
-  auditLogs    AuditLog[]
+  oauthAccounts    OAuthAccount[]
+  ownedProjects    Project[]       @relation("ProjectOwner")
+  projectMembers   ProjectMember[]
+  deployments      Deployment[]    @relation("UserDeployments")
+  auditLogs        AuditLog[]
 
   @@map("users")
 }
 
-model Project {
-  id                  String                @id @default(cuid())
-  name                String
-  slug                String                @unique
-  description         String?
-  repositoryUrl       String
-  defaultBranch       String                @default("main")
-  rootDirectory       String?
-  buildCommand        String?
-  startCommand        String?
-  port                Int                   @default(3000)
-  memoryLimitMb       Int                   @default(512)
-  cpuLimit            Float                 @default(0.5)
-  status              ProjectStatus         @default(IDLE)
-  currentDeploymentId String?
-  userId              String
-  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+model OAuthAccount {
+  id                   String        @id @default(cuid())
+  userId               String
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider             OAuthProvider
+  providerAccountId    String
+  accessTokenEncrypted String?
+  refreshTokenEncrypted String?
+  expiresAt            DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
-  deployments         Deployment[]
-  envVars             EnvironmentVariable[]
-  auditLogs           AuditLog[]
-
+  @@unique([provider, providerAccountId])
   @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model Project {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  description   String?
+  repositoryUrl String
+  defaultBranch String         @default("main")
+  rootDirectory String?
+  buildCommand  String?
+  startCommand  String?
+  port          Int            @default(3000)
+  memoryLimitMb Int            @default(512)
+  cpuLimit      Float          @default(0.5)
+  status        ProjectStatus  @default(IDLE)
+  ownerId       String
+  owner         User           @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  members       ProjectMember[]
+  environments  Environment[]
+  deployments   Deployment[]
+  releases      Release[]
+  auditLogs     AuditLog[]
+
+  @@index([ownerId])
   @@index([slug])
   @@map("projects")
 }
 
+model ProjectMember {
+  id        String      @id @default(cuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      ProjectRole @default(DEVELOPER)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+model Environment {
+  id           String        @id @default(cuid())
+  projectId    String
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name         String        // "Production", "Staging", "Preview"
+  slug         String        // "production", "staging"
+  isProduction Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  envVars      EnvironmentVariable[]
+  deployments  Deployment[]
+  releases     Release[]
+
+  @@unique([projectId, slug])
+  @@index([projectId])
+  @@map("environments")
+}
+
 model EnvironmentVariable {
-  id             String   @id @default(cuid())
-  projectId      String
-  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id             String      @id @default(cuid())
+  environmentId  String
+  environment    Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
   key            String
   encryptedValue String
   iv             String
   authTag        String
-  isSecret       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isSecret       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
-  @@unique([projectId, key])
-  @@index([projectId])
+  @@unique([environmentId, key])
+  @@index([environmentId])
   @@map("environment_variables")
 }
 
@@ -126,6 +205,8 @@ model Deployment {
   id             String            @id @default(cuid())
   projectId      String
   project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environmentId  String
+  environment    Environment       @relation(fields: [environmentId], references: [id], onDelete: Cascade)
   commitSha      String
   commitMessage  String?
   branch         String
@@ -143,8 +224,10 @@ model Deployment {
   finishedAt     DateTime?
 
   logs           DeploymentLog[]
+  releases       Release[]
 
   @@index([projectId])
+  @@index([environmentId])
   @@index([status])
   @@index([createdAt])
   @@map("deployments")
@@ -161,6 +244,28 @@ model DeploymentLog {
 
   @@index([deploymentId, createdAt])
   @@map("deployment_logs")
+}
+
+model Release {
+  id                String        @id @default(cuid())
+  projectId         String
+  project           Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environmentId     String
+  environment       Environment   @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  deploymentId      String
+  deployment        Deployment    @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  version           Int           // Sequential release number: 1, 2, 3...
+  status            ReleaseStatus @default(ACTIVE)
+  imageTag          String?
+  activeContainerId String?
+  activePort        Int?
+  activatedAt       DateTime      @default(now())
+  retiredAt         DateTime?
+
+  @@unique([environmentId, version])
+  @@index([projectId])
+  @@index([environmentId, status])
+  @@map("releases")
 }
 
 model AuditLog {
