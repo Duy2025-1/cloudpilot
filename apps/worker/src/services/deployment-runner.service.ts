@@ -231,7 +231,7 @@ export class DeploymentRunnerService {
 
       // Find currently active release for this environment
       const currentActive = prevReleases.find(
-        (r) => r.status === ReleaseStatus.ACTIVE,
+        (r: { status: ReleaseStatus }) => r.status === ReleaseStatus.ACTIVE,
       );
 
       // Create new active release

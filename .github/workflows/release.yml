@@ -60,11 +60,14 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Typecheck
-        run: pnpm typecheck
-
       - name: Generate Prisma Client
         run: pnpm db:generate
+
+      - name: Build Shared Packages
+        run: pnpm build:packages
+
+      - name: Typecheck
+        run: pnpm typecheck
 
       - name: Run Test Suites
         run: pnpm test
